@@ -3,7 +3,7 @@ n = 6;
 % f1 = @(x,y,z) x+y;
 % f2 = @(x,y,z) y+z+0.1;
 % f3 = @(x,y,z) z;
-% 
+ 
 f1 = chebfun3(@(x,y,z) x);
 f2 = chebfun3(@(x,y,z) (y-0.1).*(y+0.1));
 f3 = chebfun3(@(x,y,z) (z-0.2).*(z+0.2).*(z-0.3));
