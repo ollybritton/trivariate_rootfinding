@@ -12,8 +12,8 @@ tic
 % minimize running time
 for i=1:l1
     if (isinf(z_roots(i)) || ~isreal(z_roots(i)) ); continue; end
-    h1 = chebfun2(@(x,y) f1(x,y,z_roots(i)));
-    h2 = chebfun2(@(x,y) f2(x,y,z_roots(i)));
+    h1 = f1(:,:,z_roots(i));
+    h2 = f2(:,:,z_roots(i));
 
     roots_xy = roots(h1, h2);
     rts = [rts; [roots_xy (z_roots(i) * ones(size(roots_xy, 1),1))]];
@@ -37,24 +37,43 @@ end
 
 toc
 
-%Newton's iteration
-threshold=1e-12;
-syms x y z;
-J=matlabFunction([diff(f1,x) diff(f2,x) diff(f3,x);diff(f1,y) diff(f2,y) diff(f3,y);diff(f1,z) diff(f2,z) diff(f3,z)]);
+% Perform Newton update for each root as in root.m, can probably be
+% vectorised
+tol = 1e-12;
+
+[diffF1_1, diffF1_2, diffF1_3] = grad(f1);
+[diffF2_1, diffF2_2, diffF2_3] = grad(f2);
+[diffF3_1, diffF3_2, diffF3_3] = grad(f3);
+
+Jac = @(x,y,z) [feval(diffF1_1, x, y, z),  feval(diffF1_2, x, y, z),  feval(diffF1_3, x, y, z)
+                feval(diffF2_1, x, y, z),  feval(diffF2_2, x, y, z),  feval(diffF2_3, x, y, z)
+                feval(diffF3_1, x, y, z),  feval(diffF3_2, x, y, z),  feval(diffF3_3, x, y, z)];
+        
 for ns=1:size(rts,1)
-    g=rts(ns,:);
-        for steps=1:0
-            g=g-[f1(g(1),g(2),g(3)) f2(g(1),g(2),g(3)) f3(g(1),g(2),g(3))]/J(g(1),g(2),g(3));
-            if (abs(f1(g(1),g(2),g(3))) < threshold) & (abs(f2(g(1),g(2),g(3))) < threshold) & (abs(f3(g(1),g(2),g(3))) < threshold)
-                break;
-            end
-        end
-    rts(ns,:)=g;
+    r = rts(ns,:);
+    update = 1; 
+    iter = 1;
+    while ( ( norm(update) > 10*tol ) && ( iter < 10 ) )
+        update = Jac(r(1), r(2), r(3)) \ [ feval(f1, r(1), r(2), r(3)); 
+                                           feval(f2, r(1), r(2), r(3)); 
+                                           feval(f3, r(1), r(2), r(3)) ];
+        r = r - update.'; 
+        iter = iter + 1;
+    end
+
+    rts(ns,:) = r;
 end
+
+% Cluster nearby points
+% TODO: roots.m does this before a Newton update; this probably saves work
+% but leaves the possiblity that we introduce duplicates where nearby
+% approximate roots converge to the same root
+tol = 10*sqrt(1e-12); % TODO: same as roots.m, should it be cube root instead?
+rts = uniquetol(rts, tol, 'ByRows', true, 'DataScale', [1 1 1]); % TODO: differs from roots.m, not necessarily the "best" root in each cluster
 
 % Remove spurious solutions
 if size(rts,1) > 0
-    threshold=1e-5;
+    threshold=1e-4;
     sols = (abs(f1(rts(:,1),rts(:,2),rts(:,3))) < threshold) & (abs(f2(rts(:,1),rts(:,2),rts(:,3))) < threshold) & (abs(f3(rts(:,1),rts(:,2),rts(:,3))) < threshold);
     k = find(sols);
     roots_final = rts(k,:);
