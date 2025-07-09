@@ -1,0 +1,64 @@
+function rts = roots_xyz(f1,f2,f3,n)
+
+z_roots = roots_z(f1,f2,f3,n);
+rts = [];
+
+disp('Finding all first and second components:')
+tic
+
+[l1,~] = size(z_roots);
+
+% TODO: Choose in which order you solve z, y and x based on the degrees to
+% minimize running time
+for i=1:l1
+    if (isinf(z_roots(i)) || ~isreal(z_roots(i)) ); continue; end
+    h1 = chebfun2(@(x,y) f1(x,y,z_roots(i)));
+    h2 = chebfun2(@(x,y) f2(x,y,z_roots(i)));
+
+    roots_xy = roots(h1, h2);
+    rts = [rts; [roots_xy (z_roots(i) * ones(size(roots_xy, 1),1))]];
+
+    % rts = [rts; roots(h1,h2)];
+    % y_roots = bivariate_rootfinder(h1,h2,n);
+    % [l2,~] = size(y_roots);
+    % 
+    % for j=1:l2
+    %     if (isinf(y_roots(j)) || ~isreal(y_roots(j))); continue; end
+    %     g1 = @(x) h1(x,y_roots(j));
+    %     x_roots = univariate_rootfinder(g1,n); %The case of complex roots for x is not handled
+    %     threshold = 1e-2;
+    %     sols = (abs(f1(x_roots,y_roots(j),z_roots(i))) < threshold) & (abs(f2(x_roots,y_roots(j),z_roots(i))) < threshold) & (abs(f3(x_roots,y_roots(j),z_roots(i))) < threshold);
+    %     k = find(sols);
+    %     if (size(k,1) ~= 0)
+    %         rts = [rts; x_roots(k) repmat(y_roots(j),size(k,1),1) repmat(z_roots(i),size(k,1),1)];
+    %     end
+    % end
+end
+
+toc
+
+%Newton's iteration
+threshold=1e-12;
+syms x y z;
+J=matlabFunction([diff(f1,x) diff(f2,x) diff(f3,x);diff(f1,y) diff(f2,y) diff(f3,y);diff(f1,z) diff(f2,z) diff(f3,z)]);
+for ns=1:size(rts,1)
+    g=rts(ns,:);
+        for steps=1:0
+            g=g-[f1(g(1),g(2),g(3)) f2(g(1),g(2),g(3)) f3(g(1),g(2),g(3))]/J(g(1),g(2),g(3));
+            if (abs(f1(g(1),g(2),g(3))) < threshold) & (abs(f2(g(1),g(2),g(3))) < threshold) & (abs(f3(g(1),g(2),g(3))) < threshold)
+                break;
+            end
+        end
+    rts(ns,:)=g;
+end
+
+% Remove spurious solutions
+if size(rts,1) > 0
+    threshold=1e-5;
+    sols = (abs(f1(rts(:,1),rts(:,2),rts(:,3))) < threshold) & (abs(f2(rts(:,1),rts(:,2),rts(:,3))) < threshold) & (abs(f3(rts(:,1),rts(:,2),rts(:,3))) < threshold);
+    k = find(sols);
+    roots_final = rts(k,:);
+    rts = roots_final;
+end
+
+end

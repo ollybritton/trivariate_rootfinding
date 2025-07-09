@@ -1,0 +1,56 @@
+classdef RootfindingTest < matlab.unittest.TestCase
+    methods(Test)
+        function threeSpheres(testCase)
+            n = 2;
+            f1 = @(x,y,z) (x-1/sqrt(2)).^2 + (y-1/sqrt(2)).^2 + z.^2 - 1;
+            f2 = @(x,y,z) (x+1/sqrt(2)).^2 + (y-1/sqrt(2)).^2 + z.^2 - 1;
+            f3 = @(x,y,z) x.^2 + y.^2 + z.^2 - 1/2;
+
+            actual = roots_xyz(f1,f2,f3,n);
+            expected = [0, sqrt(2)/4, sqrt(6)/4; 0, sqrt(2)/4, -sqrt(6)/4];
+            
+            assertSameRoots(testCase, actual, expected, 1e-15)
+        end
+
+        function simpleIntersect(testCase)
+            n = 2;
+            f1 = @(x,y,z) x-0.1;
+            f2 = @(x,y,z) y-0.1;
+            f3 = @(x,y,z) z-0.1;
+
+            actual = roots_xyz(f1,f2,f3,n);
+            expected = [0.1 0.1 0.1;];
+            
+            assertSameRoots(testCase, actual, expected, 1e-15)
+        end
+
+        function severalIntersect(testCase)
+            n = 2;
+            f1 = @(x,y,z) x-0.1;
+            f2 = @(x,y,z) y-0.1;
+            f3 = @(x,y,z) (z-0.1).*(z+0.1);
+
+            actual = roots_xyz(f1,f2,f3,n);
+            expected = [0.1 0.1 0.1; 0.1 0.1 -0.1];
+            
+            assertSameRoots(testCase, actual, expected, 1e-10)
+        end
+
+        function periodicManyRoots(testCase)
+            n = 5;
+            f1 = @(x,y,z) = cos(2*pi.*x).
+        end
+    end
+end
+
+function assertSameRoots(testCase,actual,expected,tol)
+    if nargin<4, tol = 1e-15; end
+    
+    testCase.assertEqual(size(actual,2),size(expected,2), ...
+        "Actual and expected root arrays must have the same number of columns");
+
+    actual = sortrows(actual);
+    expected = sortrows(expected);
+
+    testCase.verifyEqual(actual,expected,"AbsTol",tol);
+end
