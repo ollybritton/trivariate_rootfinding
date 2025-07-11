@@ -12,6 +12,16 @@ function rts = roots_xyz(f1,f2,f3)
 
     % TODO: normalise to max value 1?
     
+    % At the moment, the resultant is calculated by interpolating the
+    % Cayley function, so subdividing this way doesn't make much sense. But
+    % it means the scaffolding is there for when the resultant can be
+    % calculated directly from the chebcoeff3 this will be better
+
+    % TODO: another difference is that roots.m can subdivide one coordinate
+    % direction at a time, this by default splits cubes into 8 which may be
+    % wildly inefficient
+    % TODO: roots.m also does this recursively
+
     [a_sub, b_sub] = split_subregion(a,b);
     rts = [];
 

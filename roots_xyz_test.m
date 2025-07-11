@@ -116,7 +116,7 @@ end
 function assertSameRoots(testCase,actual,expected,tol)
     if nargin<4, tol = 1e-15; end
     
-    if isempty(expected); testCase.assert(isempty(expected)); end
+    if isempty(expected); testCase.verifyTrue(isempty(expected)); return; end
 
     testCase.assertEqual(size(actual,2),size(expected,2), ...
         "Actual and expected root arrays must have the same number of columns");
