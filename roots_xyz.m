@@ -1,7 +1,12 @@
 function rts = roots_xyz(f1,f2,f3)
     domain = reshape(f1.domain, 2, 3);
     func_degree = max([length(f1) length(f2) length(f3)]); % Is this right?
-    max_degree = min(6, func_degree); % TODO: chosen arbitrarily
+    max_degree = min(5, func_degree); % TODO: chosen arbitrarily
+
+    % TODO: also chosen arbitrarily here, should be calculated based on
+    % analysing when it is best to subdivide
+    % also obviously way too large
+    subdivide_stop = 1.1; % this will subdivide at most once? 
 
     % TODO: also want to do domain overlook?
     % TODO: make newton polishing optional
@@ -20,23 +25,17 @@ function rts = roots_xyz(f1,f2,f3)
     % TODO: another difference is that roots.m can subdivide one coordinate
     % direction at a time, this by default splits cubes into 8 which may be
     % wildly inefficient
-    % TODO: roots.m also does this recursively
+    % TODO: roots.m also does this recursively but maybe it's better to do
+    % iteratively?
 
-    [a_sub, b_sub] = split_subregion(a,b);
-    rts = [];
-
-    for i=1:size(a_sub,1)
-        rts = [rts; roots_xyz_subregion(f1,f2,f3,a_sub(i,:),b_sub(i,:),max_degree)];
-    end
-    disp(rts);
-    
+    rts = roots_xyz_subregion(f1,f2,f3,a,b,max_degree,subdivide_stop);    
     
     % Perform Newton update for each root as in root.m, can probably be
     % vectorised
-    disp('Performing Newton update on each root:')
-    tic
-    rts = newton_update(f1,f2,f3,rts);
-    toc
+    % disp('Performing Newton update on each root:')
+    % tic
+    % rts = newton_update(f1,f2,f3,rts);
+    % toc
     
     % Cluster nearby points
     % TODO: roots.m does this before a Newton update; this probably saves work
@@ -56,26 +55,6 @@ function rts = roots_xyz(f1,f2,f3)
         sols = (abs(f1(rts(:,1),rts(:,2),rts(:,3))) < threshold) & (abs(f2(rts(:,1),rts(:,2),rts(:,3))) < threshold) & (abs(f3(rts(:,1),rts(:,2),rts(:,3))) < threshold);
         roots_final = rts(sols,:);
         rts = roots_final;
-    end
-    toc
-
-end
-
-
-function rts = roots_xyz_subregion(f1,f2,f3,a,b,max_degree)
-    z_roots = roots_z(f1,f2,f3,a,b,max_degree);
-    rts = [];
-    
-    disp('Have solved for z, now finding x & y:')
-    
-    tic
-    for i=1:size(z_roots,1)
-        if (isinf(z_roots(i)) || ~isreal(z_roots(i)) ); continue; end
-        h1 = f1(:,:,z_roots(i));
-        h2 = f2(:,:,z_roots(i));
-    
-        roots_xy = roots(h1, h2);
-        rts = [rts; [roots_xy (z_roots(i) * ones(size(roots_xy, 1),1))]];
     end
     toc
 

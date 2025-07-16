@@ -1,17 +1,29 @@
 function rts = roots_z(f1,f2,f3,a,b,max_degree)
-    % Perturbation (is this necessary?)
+    % TODO: is pertubation as follows necessary? It's done in Noferini-Nyman
     % f1 = @(x,y,z) f1(x,y,z) + eps*x.^n + eps*y.^n + eps*z.^n;
     % f2 = @(x,y,z) f2(x,y,z) + eps*x.^n + eps*y.^n + eps*z.^n;
     % f3 = @(x,y,z) f3(x,y,z) + eps*x.^n + eps*y.^n + eps*z.^n;
+
+    scale = (b - a)/2;
+    shift = (a + b)/2;
     
-    disp('Calculating Cayley resultant:')
+    remap = @(x,idx) scale(idx).*x + shift(idx);
+
+    f1_hat = @(x,y,z) f1(remap(x,1),remap(y,2),remap(z,3));
+    f2_hat = @(x,y,z) f2(remap(x,1),remap(y,2),remap(z,3));
+    f3_hat = @(x,y,z) f3(remap(x,1),remap(y,2),remap(z,3));
+
+    fprintf('Calculating Cayley resultant using degree: %d\n', max_degree);
     tic
-    [R, n_s1, n_s2, ~, ~, n_z] = cayley_resultant(f1,f2,f3,a,b,max_degree);
+    % Cayley resultant now requires the remapped functions
+    [R, n_s1, n_s2, ~, ~, n_z] = cayley_resultant(f1_hat,f2_hat,f3_hat,max_degree);
     toc
     
     disp('Finding where det(R(z)) = 0:')
     tic
     
+    % TODO: the following is still a bit of a black box conceptually
+
     % If all the coefficients of the highest degree are zero, leave it out from
     % the linearization
     z_length = n_z;
@@ -55,8 +67,10 @@ function rts = roots_z(f1,f2,f3,a,b,max_degree)
     % Ignore the roots outside the required interval or those that are
     % imaginary
 
+    rts = scale(3).*rts + shift(3);
+
     rts = real(rts(imag(rts) == 0));
-    rts = rts(a(3) < rts & rts < b(3));
+    rts = rts(a(3) <= rts & rts <= b(3));
 
     toc
 

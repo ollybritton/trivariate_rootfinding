@@ -1,6 +1,6 @@
 
 function [a_sub, b_sub] = split_subregion(a,b,point)
-    if nargin < 3 || isempty(splitAt)
+    if nargin < 3 || isempty(point)
         r_x = (b(1)-a(1))/2*0.004849834917525 + (b(1)+a(1))/2;
         r_y = (b(2)-a(2))/2*-0.0005194318842611 + (b(2)+a(2))/2;
         r_z = (b(3)-a(3))/2*0.000238764512987345 + (b(3)+a(3))/2;
