@@ -31,4 +31,7 @@ function [R, n_s1, n_s2, n_t1, n_t2, n_z] = cayley_resultant(f1,f2,f3,n)
     % Matricization of the tensor
     R = reshape(A, n_s1*n_s2, n_s1*n_s2, n_z);
 
+
+
+
 end
