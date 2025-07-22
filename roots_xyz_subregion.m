@@ -32,7 +32,7 @@ function rts = roots_xyz_subregion(f1,f2,f3,a,b,max_degree,subdivide_stop)
 
         n = min([max_degree, highest_degree]);
 
-        z_roots = roots_z(f1,f2,f3,a,b,approx_tol,n);
+        z_roots = roots_z(f1,f2,f3,a,b,n);
         
         disp('Have solved for z, now finding x & y:')
         

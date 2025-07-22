@@ -1,5 +1,5 @@
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function [xroots,yroots] = yuji(f,g,xmin,xmax,ymin,ymax,tol)
+function y_roots = yuji(f,g)
 % run bezout (core code):
 % form Bezout matrix polynomial and solve eigenproblem, then find other variable
 % form Bezoutian at magic number and find null space and diagonal balancing
@@ -13,9 +13,6 @@ mc = max(mc,2);
 
 magicnum = 0.004849834917525; % 'magic number'
 
-doswap = 0;
-
-
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%% form B and regularize %%%%%%%%%%%%%%%%%%%%%%%
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
@@ -28,31 +25,12 @@ Bsum = zeros(size(B0));
 for i = 1:mc
     B(:,:,i) = formBez(F,G,x(i));
     Bsum = Bsum+abs(B(:,:,i));
-    %        B(:,:,i) = Btmp(k+1:end,k+1:end); % extract regular part
 end
 
-if tol == 0,  % no regularization
-    k = 0;
-else
-    %%%%%%%%%% REGULARIZATION parameter %%%%%%%%%%%%%%% extract lower-right part of Bezoutian %%%
-    d = diag(B0);
-    for i = 1:size(B0,1),   d(i) = max(max(abs(Bsum(1:i,1:i))));    end
-    m = find(abs(d)/max(abs(d))> tol);
-    if isempty(m) 
-        k = 0;
-    else
-        offd = zeros(1,m(1)-1);
-        for i = 1:m(1)-1
-            offd(i) = max(max(abs(Bsum(i+1:end,1:i))));
-        end
-        mm = find(offd/max(abs(d))<sqrt(tol));
-        if isempty(mm), m(1) = 1; else m(1) = max(mm); end
-        k = max(m(1)-1,0);
-    end
-end
-%regsize = [length(B0) k]
+k = 0;
 
-if length(size(B))<3,
+
+if length(size(B))<3
     ei = [];
 else
     B = B(k+1:end,k+1:end,:); % regularize
@@ -89,224 +67,10 @@ else
     %[ei,AG,BG] = chebT1rtsmatgep(B/nrm);    ei = stairqz(AG,BG);     %    semi-staircase
     
 end
-yreal = sort(real(ei(abs(real(ei))<=1+10*eps & abs(imag(ei))<sqrt(eps)*10)));
 
-% finally obtain x-values
-[xroots,yroots] = xunivariate(F,G,xmin,xmax,ymin,ymax,yreal,doswap);
-yroots = yreal;
+y_roots = sort(real(ei(abs(real(ei))<=1+10*eps & abs(imag(ei))<sqrt(eps)*10)));
 
 end
-
-
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%   UNIVARIATE %%%%%%%%%%%%%%%%%%%%%%%%%%%
-%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
-function [xval,yval] = xunivariate(F,G,xmin,xmax,ymin,ymax,y,doswap)
-% compute x-vals from y
-% collapse if near-multiple y-values are present
-
-magicnum = 0.004849834917525; % 'magic number'
-ep = 10*eps; % tolerance for collapsing
-dist = abs(y(1:end)-[y(2:end);2]);
-ii = dist>ep;
-y = y(ii);
-
-
-xreal = magicnum*ones(size(y));
-xtmp = [];ytmp = [];
-for j = 1:length(y)
-    if xreal(j)==magicnum
-        
-        % compute coefficients via vandermonde vector
-        vy = vandercheb(y(j),size(G,1));     coef1 = vy'*G;
-        vy = vandercheb(y(j),size(F,1));     coef2 = vy'*F;
-        
-        % find roots of two univariate polys via colleague
-        if length(coef1)<=1 || norm(coef1)==0, rts1=[];
-        else
-            rts1 = chebT1rts(coef1(find(abs(coef1)>0,1,'first'):end)');
-            rts1 = real(sort(rts1(abs(imag(rts1))<=10*1e-8 & abs(rts1)<=1+10*eps)));
-        end
-        if length(coef2)<=1 || norm(coef2)==0, rts2=[];
-        else
-            rts2 = chebT1rts(coef2(find(abs(coef2)>0,1,'first'):end)');
-            rts2 = real(sort(rts2(abs(imag(rts2))<=10*1e-8 & abs(rts2)<=1+10*eps)));
-        end
-        % collapse nearby roots if any (deal with multiple roots)
-        dist = abs(rts1(1:end)-[rts1(2:end);2]);
-        ii = dist>10*ep;  rts1 = rts1(ii);
-        dist = abs(rts2(1:end)-[rts2(2:end);2]);
-        ii = dist>10*ep;  rts2 = rts2(ii);
-        rts = sort([rts1;rts2]);    res = ones(size(rts));
-        
-        % compute function values
-        for i = 1:length(rts)
-            res(i) = max([abs(coef1*vandercheb(rts(i),size(G,2))),abs(coef2*vandercheb(rts(i),size(F,2)))]);
-        end
-        
-        % adopt depending on the interval size
-        if xmax-xmin > 2e-3,
-            %rtscan = rts(find(res<1000*sqrt(eps))); % candidates for x-values
-            rtscan = rts((res<100*sqrt(eps))); % candidates for x-values
-        elseif xmax-xmin > 1e-7, % local bez
-            rtscan = rts((res<1e-10));
-        else                     % very local (final) bez
-            rtscan = rts((res<1e-12));
-        end
-        
-        % collect/collapse candidate roots
-        if ~isempty(rtscan)
-            skipnext = 0;
-            for i = 1:length(rtscan)-1
-                if skipnext
-                    skipnext = 0;
-                else
-                    if ( abs(rtscan(i)-rtscan(i+1))<10*ep ),
-                        skipnext = 1;
-                        vali = max([abs(coef1*vandercheb(rtscan(i),size(G,2))),  abs(coef2*vandercheb(rtscan(i),size(F,2)))]);
-                        valip= max([abs(coef1*vandercheb(rtscan(i+1),size(G,2))),abs(coef2*vandercheb(rtscan(i+1),size(F,2)))]);
-                        if ( vali < valip )
-                            xtmp = [xtmp;rtscan(i)];
-                        else
-                            xtmp = [xtmp;rtscan(i+1)];
-                        end
-                    else
-                        xtmp = [xtmp;rtscan(i)];
-                    end
-                    ytmp = [ytmp;y(j)];
-                end
-            end
-            % last i
-            if skipnext % do nothing
-            else
-                xtmp = [xtmp;rtscan(end)];     ytmp = [ytmp;y(j)];
-            end
-        end
-    end
-end
-
-if doswap ==0 % recover if swapped initially
-    xval  = (xmin+xmax)/2+(xmax-xmin)/2*xtmp';
-    yval  = (ymin+ymax)/2+(ymax-ymin)/2*ytmp';
-else
-    xval  = (xmin+xmax)/2+(xmax-xmin)/2*ytmp';
-    yval  = (ymin+ymax)/2+(ymax-ymin)/2*xtmp';
-end
-
-return
-end
-
-%%%%%%%%%%%%%%%%%%%%%% KEEP IN CASE I NEED AT SOME STAGE %%%%%%%%%%%%%%%%% 
-% function [xroots,yroots,sproots] = localrefine(f,g,xmin,xmax,ymin,ymax,xwid,ywid,tolreg,maxd)
-% % execute subdivision and if degrees small enough, run bezout
-%
-% approx_tol = 1e-13; % cheb2 cutoff tolerance
-% ff = cheb2(f,[xmin xmax ymin ymax],approx_tol,maxd+2); % sample at a bit more than maxd points
-% gg = cheb2(g,[xmin xmax ymin ymax],approx_tol,maxd+2);
-% F = ff.coeffs; G = gg.coeffs;
-%
-%     if isempty(F),
-%             v = vandercheb(0,size(G,2));
-%             G = G*v;
-%             rx = chebT1rts(G(find(abs(G)>0,1,'first'):end)')';
-%             rx = real(sort(rx(abs(imag(rx))<=1e-8 & abs(rx)<=1+10*eps)));
-%             yroots  = (ymin+ymax)/2+(ymax-ymin)/2*rx;
-%             xroots = (xmin+xmax)/2*ones(size(yroots));
-%         return,
-%     end
-%     if isempty(G),
-%             v = vandercheb(0,size(F,2));
-%             F = F*v;
-%             rx = chebT1rts(F(find(abs(F)>0,1,'first'):end)')';
-%             rx = real(sort(rx(abs(imag(rx))<=1e-8 & abs(rx)<=1+10*eps)));
-%             yroots  = (ymin+ymax)/2+(ymax-ymin)/2*rx;
-%             xroots = (xmin+xmax)/2*ones(size(yroots));
-%         return,
-%     end
-%
-%
-%     if min(min(size(F)),min(size(G)))<=1,
-%         if length(F)<=1 && length(G)<=1, % constant
-%             if (abs(F)<=1e-15) && (abs(G)<=1e-15), % flat 0; just say middle point is 0
-%                 xroots = (xmax+xmin)/2; yroots = (ymax+ymin)/2;
-%             else
-%                 xroots = [];yroots=[];
-%             end
-%         else
-%             %    'no roots here!'
-%             %[xmin xmax ymin ymax],keyboard
-%             [xroots,yroots] = onevar(F,G,xmin,xmax,ymin,ymax);
-%         end
-%     else
-%    [xroots,yroots] = runbezval(F,G,xmin,xmax,ymin,ymax,tolreg);        % bez not syl
-%     end
-% end
-
-
-function [xroots,yroots] = onevar(F,G,xmin,xmax,ymin,ymax)
-% when either F or G is constant
-doswap = 0;
-
-if min(min(size(F)))==1,
-    if size(F,2) ==1, FF = F'; GG = G'; doswap = 1;
-    else FF = F; GG = G;
-    end
-else
-    if size(G,2) ==1, FF = G'; GG = F'; doswap = 1;
-    else FF = G; GG = F;
-    end
-end
-
-if length(FF)==1
-    if abs(FF)<1e-15,
-        if min(size(GG))==1,
-            rx = chebT1rts(GG(find(abs(GG)>0,1,'first'):end)')';
-            rx = real(sort(rx(abs(imag(rx))<=1e-8 & abs(rx)<=1+10*eps)));
-            rr = rx;
-        else % GG is matrix. just take x=0 and find y.
-            %gcheb = chebfun2(g,[xmin xmax ymin ymax]);                roots(gcheb);
-            v = vandercheb(0,size(GG,2));
-            GG = GG*v;
-            rx = chebT1rts(GG(find(abs(GG)>0,1,'first'):end)')';
-            rx = real(sort(rx(abs(imag(rx))<=1e-8 & abs(rx)<=1+10*eps)));
-            rr = rx;
-        end
-        if size(GG,1)>size(GG,2)
-            yroots =rr; xroots = zeros(size(rr));
-        else
-            xroots =rr; yroots = zeros(size(rr));
-        end
-    else
-        xroots = []; yroots = [];
-    end
-else
-    rx = chebT1rts(FF(find(abs(FF)>0,1,'first'):end)');
-    rx = real(sort(rx(abs(imag(rx))<=1e-8 & abs(rx)<=1+10*eps)));
-    xroots = []; yroots = [];
-    for j=1:length(rx)
-        vy = vandercheb(rx(j),size(GG,2)); coef = GG*vy;
-        % ry = roots(chebfun(coef,'coeffs'))';
-        if length(coef)<=1,
-            if norm(coef)<1e-15,
-                ry = 0;
-            else ry=[];
-            end
-        else
-            rts2 = chebT1rts(coef(find(abs(coef)>0,1,'first'):end));
-            rts2 = real(sort(rts2(abs(imag(rts2))<=1e-8 & abs(rts2)<=1+10*eps)));
-            ry = rts2';
-        end
-        yroots = [yroots ry];
-        xroots = [xroots rx(j)*ones(size(ry))];
-    end
-end
-if doswap
-    xt = xroots;  xroots = yroots; yroots = xt;
-end
-xroots  = (xmin+xmax)/2+(xmax-xmin)/2*xroots;
-yroots  = (ymin+ymax)/2+(ymax-ymin)/2*yroots;
-end
-
 
 function [r,A,B] = chebT1rtsmatgep(c)
 % CHEBT1RTSMATGEP(c), finds via QZ the roots of a MATRIX polynomial

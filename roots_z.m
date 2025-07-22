@@ -1,4 +1,4 @@
-function rts = roots_z(f1,f2,f3,a,b,max_degree)
+function [rts, R] = roots_z(f1,f2,f3,a,b,max_degree)
     % TODO: is pertubation as follows necessary? It's done in Noferini-Nyman
     % f1 = @(x,y,z) f1(x,y,z) + eps*x.^n + eps*y.^n + eps*z.^n;
     % f2 = @(x,y,z) f2(x,y,z) + eps*x.^n + eps*y.^n + eps*z.^n;
@@ -18,6 +18,10 @@ function rts = roots_z(f1,f2,f3,a,b,max_degree)
     % Cayley resultant now requires the remapped functions
     [R, n_s1, n_s2, ~, ~, n_z] = cayley_resultant(f1_hat,f2_hat,f3_hat,max_degree);
     toc
+
+    % Scaling? This is what roots does
+    % "scale as suggested as Van Dooren"
+    % R = R/norm(R, 'fro');
     
     disp('Finding where det(R(z)) = 0:')
     tic

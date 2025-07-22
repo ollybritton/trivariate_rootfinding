@@ -41,22 +41,21 @@ for k = 1:numel(hVals)
     remap = @(x,idx) scale(idx).*x + shift(idx);
     new_expected = [remap(expected(1),1), remap(expected(2),2)];
         
-    p1_hat = @(x1,x2) p1(remap(x1,1), remap(x2,2));
-    p2_hat = @(x1,x2) p2(remap(x1,1), remap(x2,2));
+    p1_unit = @(x1,x2) p1(remap(x1,1), remap(x2,2));
+    p2_unit = @(x1,x2) p2(remap(x1,1), remap(x2,2));
 
     % Locate all roots inside that square
-    % wrong way around?
-    [~,rootsY] = yuji(p1_hat, p2_hat,-1,1,-1,1,0); % no subdiv
+    roots_y_unit = yuji(p1_unit, p2_unit); % no subdiv
 
-    rootsGlobal = remap(rootsY(:,1),2);     % x₂ in original coords
+    roots_y = remap(roots_y_unit(:,1),2);
 
-    if isempty(rootsY)
+    if isempty(roots_y)
         % No root detected in this tiny box
         distVals(k) = NaN;
         warning('No roots found for h = %.3g – recording NaN', h);
     else
         % Euclidean distance of each root to the expected point
-        d = abs(rootsGlobal - expected(2));
+        d = abs(roots_y - expected(2));
         distVals(k) = min(d);
     end
     toc
