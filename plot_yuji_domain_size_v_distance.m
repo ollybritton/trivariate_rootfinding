@@ -10,7 +10,7 @@ Q = [ ...
 expected = [0.68298, 0.23487];
 
 %% Fix σ here
-sigma = 1e-5;                       % <-- change if you want
+sigma = 1e-3;                       % <-- change if you want
 
 % Components of F(x) (independent of h)
 f1 = @(x1,x2) x1.^2 + sigma .* (Q(1,1).*x1 + Q(1,2).*x2);

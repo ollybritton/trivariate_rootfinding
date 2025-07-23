@@ -1,4 +1,4 @@
-function [rts, R] = roots_z(f1,f2,f3,a,b,max_degree)
+function [rts, R, V, W, approx_err] = roots_z(f1,f2,f3,a,b,max_degree)
     % TODO: is pertubation as follows necessary? It's done in Noferini-Nyman
     % f1 = @(x,y,z) f1(x,y,z) + eps*x.^n + eps*y.^n + eps*z.^n;
     % f2 = @(x,y,z) f2(x,y,z) + eps*x.^n + eps*y.^n + eps*z.^n;
@@ -16,7 +16,7 @@ function [rts, R] = roots_z(f1,f2,f3,a,b,max_degree)
     fprintf('Calculating Cayley resultant using degree: %d\n', max_degree);
     tic
     % Cayley resultant now requires the remapped functions
-    [R, n_s1, n_s2, ~, ~, n_z] = cayley_resultant(f1_hat,f2_hat,f3_hat,max_degree);
+    [R, n_s1, n_s2, ~, ~, n_z, approx_err] = cayley_resultant(f1_hat,f2_hat,f3_hat,max_degree);
     toc
 
     % Scaling? This is what roots does
@@ -61,7 +61,7 @@ function [rts, R] = roots_z(f1,f2,f3,a,b,max_degree)
         C2(end-n+1:end,:) = C2(end-n+1:end,:)+D;
     
         % Solve the eigenproblem
-        [~,D] = eig(C2,-C1);
+        [V,D,W] = eig(C2,-C1, "qz");
         %     [~, D, C]=polyeig(C2,-C1);
     
         rts = diag(D);
@@ -73,8 +73,15 @@ function [rts, R] = roots_z(f1,f2,f3,a,b,max_degree)
 
     rts = scale(3).*rts + shift(3);
 
-    rts = real(rts(imag(rts) == 0));
-    rts = rts(a(3) <= rts & rts <= b(3));
+    real_mask = imag(rts) == 0;
+    rts = rts(real_mask);
+    V = V(real_mask,:);
+    W = W(real_mask,:);
+
+    interval_mask = a(3) <= rts & rts <= b(3);
+    rts = rts(interval_mask);
+    V = V(interval_mask,:);
+    W = W(interval_mask,:);
 
     toc
 
