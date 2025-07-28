@@ -132,7 +132,7 @@ oh = .5*ones(length(c)-1,1);
 % Modified colleague matrix:
 A = diag(oh,1)+diag(oh,-1);
 A(end,end-1) = 1; A(1,:) = flipud(c);
-r = eig(A);% Compute roots as eig(A)
+    r = eig(A);% Compute roots as eig(A)
 
 end
 

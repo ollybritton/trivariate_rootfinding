@@ -2,17 +2,17 @@ close all; clear; clc;
 
 plot_dist = 1;
 plot_coeff = 0;
-degree_approx = 3;
+degree_approx = 4;
 
 % Controls difficulty of problem, by default the condition number of the
 % root finding problem is 1/sigma.
-sigma = 1e-4;
+sigma = 1e-6;
 
 % Widths of subregions considered
-hVals = logspace( 0, -10, 30 );
+hVals = logspace( 0, -10, 20 );
 
-num_Q = 5;
-num_root_loc = 3;
+num_Q = 1;
+num_root_loc = 1;
 [~, num_h] = size(hVals);
 
 data_size = [num_h num_Q num_root_loc];
@@ -104,6 +104,13 @@ for i_Q = 1:num_Q
             cond_hat = 1/abs(det(J_hat));
             err_estimate_hat = 1e-15 * cond_hat * h;
 
+            scale_factor = (abs(det(J_hat)) / norm(J,2)).^(1/3);
+
+            p1_u = @(x1,x2,x3) scale_factor * p1(remap(x1,1), remap(x2,2), remap(x3,3)) / c1;
+            p2_u = @(x1,x2,x3) scale_factor * p2(remap(x1,1), remap(x2,2), remap(x3,3)) / c2;
+            p3_u = @(x1,x2,x3) scale_factor * p3(remap(x1,1), remap(x2,2), remap(x3,3)) / c3;
+
+
             % Don't know why this is so small
         
             % Locate all roots inside this cube, in the "unit" coordinates.
@@ -127,7 +134,7 @@ for i_Q = 1:num_Q
                 distVals(k, i_Q, i_root_loc) = min_dist;
         
                 % Rough theoretical predictions
-                predictedDistVals(k, i_Q, i_root_loc) = approx_err * h;
+                predictedDistVals(k, i_Q, i_root_loc) = approx_err;
             end
 
             if isempty(roots_z_preconditioned)
@@ -159,7 +166,6 @@ if plot_dist
     title(sprintf(['Effect of shrinking the domain on error ' '(σ = %.0e)'], sigma), 'Interpreter','latex');
     
     % line showing how small the domain should be for good error
-    % not sure if it should be cond or 1/cond??
     xline(1/cond,'r--', ...                       
           'Interpreter','latex', ...
           'Label','\(h \approx 1/\mathrm{cond}\)', ...

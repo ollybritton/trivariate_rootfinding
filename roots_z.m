@@ -61,7 +61,7 @@ function [rts, R, V, W, approx_err] = roots_z(f1,f2,f3,a,b,max_degree)
         C2(end-n+1:end,:) = C2(end-n+1:end,:)+D;
     
         % Solve the eigenproblem
-        [V,D,W] = eig(C2,-C1, "qz");
+        [V,D,W] = eig(C2,-C1);
         %     [~, D, C]=polyeig(C2,-C1);
     
         rts = diag(D);
