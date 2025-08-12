@@ -19,14 +19,12 @@
 % and y, solving the problem, and shifting back at the end. 
 
 warning off % supress many warning messages
-sig = 0.0001; 
-p = 5; % multiplicity of root
-shiftx = 0;rand/100; % shift in x
-shifty = 0;rand/100; % shift in y
-f = chebfun2(@(x,y) (x-shiftx).^p-sig*(y-shifty),[-1 1 -1 1]); 
-g = chebfun2(@(x,y) (y-shifty).^p-sig*(x-shiftx),[-1 1 -1 1]); 
+sig = 0.001; 
+shiftx = rand/100; % shift in x
+shifty = rand/100; % shift in y
+f = chebfun2(@(x,y) (x-shiftx)^2-sig*(y-shifty),[-1 1 -1 1]); 
+g = chebfun2(@(x,y) (y-shifty)^2-sig*(x-shiftx),[-1 1 -1 1]); 
 r = roots(f,g);
-min(vecnorm((r-[shiftx shifty])'))
 
 %%
 % That was a single run. We now run it many times and record the result, 
@@ -36,9 +34,7 @@ MS = 'Markersize'; LW = 'linewidth'; FS = 'fontsize'; CO = 'Color'; TEX = 'inter
 lw = 2; ms = 12; fs = 14; 
 
 clf
-%Rs = [0.01 0.02 0.035 0.06 0.1 0.2 0.35 0.6 1 2 3.5 6 10];
-%Rs = [0.01 0.02 0.035 0.06 0.1 0.2 0.35 0.6 1 2 3.5 6];
-Rs = [0.01 0.02 0.035 0.06 0.1 0.2 0.35 0.6 1 2 3.5 6 10 20 40 100];
+Rs = [0.01 0.02 0.035 0.06 0.1 0.2 0.35 0.6 1 2 3.5 6 10];
 errmax = []; % record largest error
 for R = Rs
     err = [];
@@ -46,28 +42,18 @@ for R = Rs
         shiftx = randn/100; % shift in x
         shifty = randn/100; % shift in y
 
-        f = chebfun2(@(x,y) (x-shiftx).^p-sig*(y-shifty) ,[shiftx-R shiftx+R shifty-R shifty+R]);
-        g = chebfun2(@(x,y) (y-shifty).^p-sig*(x-shiftx) ,[shiftx-R shiftx+R shifty-R shifty+R]);
+        f = chebfun2(@(x,y) (x-shiftx)^2-sig*(y-shifty) ,[shiftx-R shiftx+R shifty-R shifty+R]);
+        g = chebfun2(@(x,y) (y-shifty)^2-sig*(x-shiftx) ,[shiftx-R shiftx+R shifty-R shifty+R]);
         r = roots(f,g);
-        %err = [err norm(r(1,:)-[shiftx shifty],inf)];
-
-        if ~isempty(r)
-            err = [err min(vecnorm((r-[shiftx shifty])'))];
-            loglog(R,err,'k.',MS,14), grid on
-        end
-
+        err = [err r(1,:)-[shiftx shifty]];
+        loglog(R,err,'k.',MS,14), grid on
         hold on
     end
     errmax = [errmax max(err)]; 
 end
-%%
 shg
 xlabel('window size',FS,fs)
 ylabel('accuracy',FS,fs)
-
-const = errmax(1)/(Rs(1));
-loglog(Rs,Rs*const,'k--')
-text(Rs(end),Rs(end)*const,'O(w)',FS,fs)
 
 const = errmax(1)/(Rs(1)^2);
 loglog(Rs,Rs.^2*const,'k--')

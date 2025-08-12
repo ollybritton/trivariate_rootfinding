@@ -1,4 +1,4 @@
-function [rts, R, V, W, approx_err] = roots_z(f1,f2,f3,a,b,max_degree)
+function [rts, R, V, W, approx_err, eig_err] = roots_z(f1,f2,f3,a,b,max_degree)
     % TODO: is pertubation as follows necessary? It's done in Noferini-Nyman
     % f1 = @(x,y,z) f1(x,y,z) + eps*x.^n + eps*y.^n + eps*z.^n;
     % f2 = @(x,y,z) f2(x,y,z) + eps*x.^n + eps*y.^n + eps*z.^n;
@@ -37,12 +37,23 @@ function [rts, R, V, W, approx_err] = roots_z(f1,f2,f3,a,b,max_degree)
     
     if (z_length == 0)
         rts = [];
+        V = []; W = [];
+        lin_back_err = [];            % %% ADDED
     elseif (z_length <= 2)
-        [~,D] = eig(R(:,:,1),-R(:,:,2));
-        rts = diag(D);
+        [V,D,W] = eig(R(:,:,1),-R(:,:,2));
+        rts_unit = diag(D);           % %% ADDED: keep unit-z values
+        % %% ADDED: residual-based backward error for degree-1 case
+        R1 = R(:,:,1); R2 = R(:,:,2);
+        m = length(rts_unit);
+        lin_back_err_all = zeros(m,1);
+        for i = 1:m
+            vi = V(:,i);
+            ri = (R1 + rts_unit(i)*R2) * vi;          % residual in unit coords
+            nz_eff = z_length;                         % effective # z-slices used
+            lin_back_err_all(i) = nz_eff * (norm(ri,2) / max(norm(vi,2), eps));
+        end
     else
         n = n_s1*n_s2;
-    
         % Compute the linearization matrices C1 and C2
         C1 = -2*eye(n*(z_length-1));
         C1(end-n+1:end,end-n+1:end) = 2*R(:,:,z_length);
@@ -59,14 +70,37 @@ function [rts, R, V, W, approx_err] = roots_z(f1,f2,f3,a,b,max_degree)
             D = [D R(:,:,i)];
         end
         C2(end-n+1:end,:) = C2(end-n+1:end,:)+D;
-    
-        % Solve the eigenproblem
         [V,D,W] = eig(C2,-C1);
-        %     [~, D, C]=polyeig(C2,-C1);
+        rts_unit = diag(D);           % %% ADDED: keep unit-z values
     
-        rts = diag(D);
-    
+        % %% ADDED: residual-based backward error for higher degree
+        m = length(rts_unit);
+        lin_back_err_all = zeros(m,1);
+        for i = 1:m
+            vi = V(:,i);
+            ri = (C2 - rts_unit(i)*C1) * vi;          % residual in unit coords
+            nz_eff = z_length;                         % effective # z-slices used
+            lin_back_err_all(i) = nz_eff * (norm(ri,2) / max(norm(vi,2), eps));
+        end
     end
+    
+    % %% ADDED: map z to physical coords, then filter, and carry lin_back_err along
+    if ~isempty(rts_unit)
+        rts_phys = scale(3).*rts_unit + shift(3);     % physical z
+        real_mask = (imag(rts_phys) == 0);
+        interval_mask = a(3) <= real(rts_phys) & real(rts_phys) <= b(3);
+        keep = real_mask & interval_mask;
+    
+        rts = real(rts_phys(keep));                   % returned roots (physical)
+        V   = V(:, keep);
+        W   = W(:, keep);
+        lin_back_err = lin_back_err_all(keep);        % returned errors
+    else
+        rts = [];
+        lin_back_err = [];
+    end
+
+    eig_err = lin_back_err;
     
     % Ignore the roots outside the required interval or those that are
     % imaginary
@@ -75,13 +109,15 @@ function [rts, R, V, W, approx_err] = roots_z(f1,f2,f3,a,b,max_degree)
 
     real_mask = imag(rts) == 0;
     rts = rts(real_mask);
-    V = V(real_mask,:);
-    W = W(real_mask,:);
-
     interval_mask = a(3) <= rts & rts <= b(3);
     rts = rts(interval_mask);
-    V = V(interval_mask,:);
-    W = W(interval_mask,:);
+
+    if ~isempty(rts)
+        V = V(real_mask,:);
+        W = W(real_mask,:);
+        V = V(interval_mask,:);
+        W = W(interval_mask,:);
+    end
 
     toc
 

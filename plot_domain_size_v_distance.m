@@ -2,17 +2,17 @@ close all; clear; clc;
 
 plot_dist = 1;
 plot_coeff = 0;
-degree_approx = 4;
+degree_approx = 3;
 
 % Controls difficulty of problem, by default the condition number of the
 % root finding problem is 1/sigma.
-sigma = 1e-6;
+sigma = 1e-5;
 
 % Widths of subregions considered
-hVals = logspace( 0, -10, 20 );
+hVals = logspace( -1, -5, 30 );
 
 num_Q = 1;
-num_root_loc = 1;
+num_root_loc = 20;
 [~, num_h] = size(hVals);
 
 data_size = [num_h num_Q num_root_loc];
@@ -36,15 +36,15 @@ for i_Q = 1:num_Q
     peturb = rand(1,3);
         
     % Devastating example as in Noferini-Townsend
-    f1 = @(x1,x2,x3) x1.^2 + sigma .* (Q(1,1).*x1 + Q(1,2).*x2 + Q(1,3).*x3) + dot([x1.^4 x2.^4 x3.^4], peturb);
-    f2 = @(x1,x2,x3) x2.^2 + sigma .* (Q(2,1).*x1 + Q(2,2).*x2 + Q(2,3).*x3) + dot([x1.^4 x2.^4 x3.^4], peturb);
-    f3 = @(x1,x2,x3) x3.^2 + sigma .* (Q(3,1).*x1 + Q(3,2).*x2 + Q(3,3).*x3) + dot([x1.^4 x2.^4 x3.^4], peturb);
+    f1 = @(x1,x2,x3) x1.^2 + sigma .* (Q(1,1).*x1 + Q(1,2).*x2 + Q(1,3).*x3);% + dot([x1.^4 x2.^4 x3.^4], peturb);
+    f2 = @(x1,x2,x3) x2.^2 + sigma .* (Q(2,1).*x1 + Q(2,2).*x2 + Q(2,3).*x3);% + dot([x1.^4 x2.^4 x3.^4], peturb);
+    f3 = @(x1,x2,x3) x3.^2 + sigma .* (Q(3,1).*x1 + Q(3,2).*x2 + Q(3,3).*x3);% + dot([x1.^4 x2.^4 x3.^4], peturb);
     
     for i_root_loc = 1:num_root_loc
         fprintf("root_loc number %d\n", i_root_loc);
         % Chosen location of the root (by default it is the origin, but that might
         % be especially easy to find for some reason).
-        expected = 2*rand(1,3) - 1;
+        expected = 0.03 * (2*rand(1,3) - 1);
         
         % Chebfun3 objects corresponding to translated problem
         p1 = chebfun3(@(x1,x2,x3) f1(x1-expected(1), x2-expected(2), x3-expected(3)));
@@ -134,7 +134,7 @@ for i_Q = 1:num_Q
                 distVals(k, i_Q, i_root_loc) = min_dist;
         
                 % Rough theoretical predictions
-                predictedDistVals(k, i_Q, i_root_loc) = approx_err;
+                predictedDistVals(k, i_Q, i_root_loc) = h * approx_err;
             end
 
             if isempty(roots_z_preconditioned)
@@ -155,9 +155,9 @@ delete(f);
 if plot_dist
     figure;
     
-    loglog(hVals, mean(distVals, [2, 3], "omitnan"), 'o-','LineWidth',1.2,'MarkerSize',6);
+    loglog(hVals, max(distVals, [], 3), 'o-','LineWidth',1.2,'MarkerSize',6);
     hold on;
-    loglog(hVals, mean(predictedDistVals, [2, 3], "omitnan"), 'o-','LineWidth',1.2,'MarkerSize',6);
+    % loglog(hVals, mean(predictedDistVals, [2, 3], "omitnan"), 'o-','LineWidth',1.2,'MarkerSize',6);
     % loglog(hVals, mean(testDistVals, [2, 3], "omitnan"), 'o-','LineWidth',1.2,'MarkerSize',6);
     grid on;
     xlabel('box width \(h\)','Interpreter','latex');
