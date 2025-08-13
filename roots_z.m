@@ -32,7 +32,7 @@ function [rts, R, V, W, approx_err, eig_err] = roots_z(f1,f2,f3,a,b,max_degree)
     % the linearization
     z_length = n_z;
     for i = flip(1:n_z)
-        if (norm(R(:,:,i),'fro') < 1e-12); z_length = i-1; else; break; end
+        if (norm(R(:,:,i),'fro') == 0); z_length = i-1; else; break; end
     end
     
     if (z_length == 0)

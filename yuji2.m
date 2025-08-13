@@ -22,8 +22,9 @@ warning off % supress many warning messages
 sig = 0.001; 
 shiftx = rand/100; % shift in x
 shifty = rand/100; % shift in y
-f = chebfun2(@(x,y) (x-shiftx)^2-sig*(y-shifty),[-1 1 -1 1]); 
-g = chebfun2(@(x,y) (y-shifty)^2-sig*(x-shiftx),[-1 1 -1 1]); 
+ep = 1e-8;
+f = chebfun2(@(x,y) (1/2 + ep)*x + (1/2 - ep)*y,[-1 1 -1 1]); 
+g = chebfun2(@(x,y) (1/2 - ep)*x + (1/2 + ep)*y,[-1 1 -1 1]); 
 r = roots(f,g);
 
 %%

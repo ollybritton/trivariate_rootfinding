@@ -2,13 +2,13 @@
 % Yuji Nakatsukasa, Oxford, July 2025
 
 warning off                         % suppress many warning messages
-sig  = 1e-7;                        % σ as before
+sig  = 1e-9;                        % σ as before
 
 MS = 'Markersize'; LW = 'linewidth'; FS = 'fontsize';
 lw = 2; ms = 12; fs = 14;
 
 clf
-Rs      = [0.0000001 0.000001 0.00001 0.0001 0.001 0.01 0.02 0.035 0.06 0.1 0.2 0.35 0.6 1 2 3.5 6 10];
+Rs      = [0.00001 0.0001 0.001 0.01 0.02 0.035 0.06 0.1 0.2 0.35 0.6 1 2 3.5 6 10];
 errmax  = [];
 
 %%  random 2×2 orthogonal matrix Q --------------------------------
@@ -19,6 +19,7 @@ Q = [cos(theta)  -sin(theta);
 for R = Rs
     err = [];
     for ii = 1:30                  % 20 random trials per window size
+        disp(ii);
 
         %%  random centre of the search square ---------------------------
         shiftx = randn/100;
@@ -29,17 +30,8 @@ for R = Rs
         ymap = @(v) shifty + R*v;
 
         %%  polynomials on reference square ------------------------------
-        F = chebfun2(@(u,v) ...
-                 (xmap(u)-shiftx).^2 + ...
-                 sig.*( Q(1,1).*(xmap(u)-shiftx) + ...
-                        Q(1,2).*(ymap(v)-shifty) ), ...
-                 [-1 1 -1 1]);
-
-        G = chebfun2(@(u,v) ...
-                 (ymap(v)-shifty).^2 + ...
-                 sig.*( Q(2,1).*(xmap(u)-shiftx) + ...
-                        Q(2,2).*(ymap(v)-shifty) ), ...
-                 [-1 1 -1 1]);
+        F = chebfun2(@(u,v) (1/2 - sigma).*(xmap(u)-shiftx) + (1/2 + sigma).*(ymap(v)-shifty), [-1 1 -1 1]);
+        G = chebfun2(@(u,v) (1/2 + sigma).*(xmap(u)-shiftx) + (1/2 - sigma).*(ymap(v)-shifty), [-1 1 -1 1]);
 
         %%  roots: yuji returns ONLY v‑coordinates in reference domain ----
         v_roots = yuji(F, G);                 % m×1 vector of v values

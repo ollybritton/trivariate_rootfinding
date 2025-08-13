@@ -5,7 +5,7 @@ plot_coeff   = 0;
 degree_approx = 2;
 
 % Difficulty parameter: typical root-finding conditioning scales like 1/sigma.
-sigma = 1;
+sigma = 1e-3;
 
 p = 2;                     % polynomial degree in the example
 
@@ -34,16 +34,15 @@ for i_Q = 1:num_Q
     f2 = @(x1,x2,x3) x2.^p + sigma .* (Q(2,1).*x1 + Q(2,2).*x2 + Q(2,3).*x3) + dot([x1.^4, x2.^4, x3.^4], perturb);
     f3 = @(x1,x2,x3) x3.^p + sigma .* (Q(3,1).*x1 + Q(3,2).*x2 + Q(3,3).*x3) + dot([x1.^4, x2.^4, x3.^4], perturb);
 
-    % Linear but poor conditioning dependence
-    % et = 10^(-7);
-    C = 100;
-    ep1 = 10^(-7);
-    ep2 = ep1;
-    ep3 = ep1;
-    % del = 10^(-7);
-    % f1 = @(x1,x2,x3) 1 * ((1/3 + ep1) * x1 + 1/3 * x2 + (1/3 - ep1) * x3);
-    % f2 = @(x1,x2,x3) 1 * ((1/3 + ep2) * x1 + (1/3 - ep2) * x2 + 1/3 * x3);
-    % f3 = @(x1,x2,x3) 1 * ((1/3) * x1 + (1/3 - ep3) * x2 + (1/3 + ep3) * x3);
+    % % Linear but poor conditioning dependence
+    % % et = 10^(-7);
+    % ep1 = 10^(-8);
+    % ep2 = ep1;
+    % ep3 = ep1;
+    % % del = 10^(-7);
+    % f1 = @(x1,x2,x3) (1 * ((1/3 + ep1) * x1 + 1/3 * x2 + (1/3 - ep1) * x3));
+    % f2 = @(x1,x2,x3) (1 * ((1/3 + ep2) * x1 + (1/3 - ep2) * x2 + 1/3 * x3));
+    % f3 = @(x1,x2,x3) (1 * ((1/3) * x1 + (1/3 - ep3) * x2 + (1/3 + ep3) * x3));
 
     for i_root_loc = 1:num_root_loc
         completion = ((i_Q-1) * num_root_loc + (i_root_loc-1)) / (num_Q * num_root_loc);
@@ -55,18 +54,44 @@ for i_Q = 1:num_Q
         expected = (2*rand(1,3) - 1)/100;
 
         % Chebfun3 objects for translated problem
-        p1 = chebfun3(@(x1,x2,x3) f1(x1-expected(1), x2-expected(2), x3-expected(3)));
-        p2 = chebfun3(@(x1,x2,x3) f2(x1-expected(1), x2-expected(2), x3-expected(3)));
-        p3 = chebfun3(@(x1,x2,x3) f3(x1-expected(1), x2-expected(2), x3-expected(3)));
+        f1_translated = chebfun3(@(x1,x2,x3) f1(x1-expected(1), x2-expected(2), x3-expected(3)));
+        f2_translated = chebfun3(@(x1,x2,x3) f2(x1-expected(1), x2-expected(2), x3-expected(3)));
+        f3_translated = chebfun3(@(x1,x2,x3) f3(x1-expected(1), x2-expected(2), x3-expected(3)));
 
         % Conditioning at the root
-        J_func = jac(p1,p2,p3);
+        J_func = jac(f1_translated,f2_translated,f3_translated);
         J      = J_func(expected(1), expected(2), expected(3));
-        condJinv = norm(inv(J));
+        J_inv  = inv(J);
+        cond_root = norm(inv(J));
         cond_eig = 1 / abs(det(J));
+
+        best_guess = nan;
 
         for k = 1:numel(hVals)
             h = hVals(k);
+
+            if isnan(best_guess)
+                p1 = f1_translated;
+                p2 = f2_translated;
+                p3 = f3_translated;
+            else
+                % Simulate uncertainty
+                J_func_approx = jac(f1_translated,f2_translated,f3_translated);
+                J_approx      = J_func(best_guess(1), best_guess(2), best_guess(3));
+                J_inv_approx  = inv(J);
+
+                % Multiply by inverse of Jacobian at the root (this will not be
+                % known in practice)
+                p1 = chebfun3(@(x1,x2,x3) J_inv_approx(1,1)*f1_translated(x1,x2,x3) + J_inv_approx(1,2)*f2_translated(x1,x2,x3) + J_inv_approx(1,3)*f3_translated(x1,x2,x3), [2 2 2]);
+                p2 = chebfun3(@(x1,x2,x3) J_inv_approx(2,1)*f1_translated(x1,x2,x3) + J_inv_approx(2,2)*f2_translated(x1,x2,x3) + J_inv_approx(2,3)*f3_translated(x1,x2,x3), [2 2 2]);
+                p3 = chebfun3(@(x1,x2,x3) J_inv_approx(3,1)*f1_translated(x1,x2,x3) + J_inv_approx(3,2)*f2_translated(x1,x2,x3) + J_inv_approx(3,3)*f3_translated(x1,x2,x3), [2 2 2]);
+        
+                % New condition numbers, these should be close to one
+                J_func_translated = jac(p1,p2,p3);
+                J_translated      = J_func_translated(expected(1), expected(2), expected(3));
+                cond_root_translated = norm(inv(J_translated));
+                cond_eig_translated = 1 / abs(det(J_translated));
+            end
 
             % Asymmetric cube around the expected root
             a = [expected(1) - h/3,   expected(2) + h/3,   expected(3) - h/4];
@@ -99,33 +124,81 @@ for i_Q = 1:num_Q
 
             if isempty(roots_z_unit)
                 distVals(k, i_Q, i_root_loc) = NaN;
-            else
-                % roots_z_unit is a column of z-values (unit coords); map them to z
-                roots_z_remapped = remap(roots_z_unit(:,1), 3);
-                d = abs(roots_z_remapped - expected(3));
-                [min_dist, min_idx] = min(d);
-                distVals(k, i_Q, i_root_loc) = min_dist;
-
-                % crude forward-error proxy from block size & scaling
-                v_sel = V(min_idx);
-                w_sel = W(min_idx);
-                vfac = norm(v_sel,2);
-                wfac = norm(w_sel,2);
-
-                % The size of the resultant matrix
-                N_xy = size(R, 1);
-                
-                error_resultant = h * (4 * vfac * wfac * (c1 * c2 * c3) / (h^3 * abs(det(J))) * (32 * approx_err * N_xy + eig_err(min_idx)));
-                error_floor = 1e-15 * condJinv;
-                err_est_hat = max(error_resultant, error_floor);
-
-                % This error estimate is only valid when the approximation
-                % error is not super high. Here it is fixed, but in
-                % practice it would actually depend dynamically on the
-                % problem.
-
-                predictedDistVals(k, i_Q, i_root_loc) = err_est_hat;
+                predictedDistVals(k, i_Q, i_root_loc) = NaN;
+                continue
             end
+
+            % Map z-roots back to physical coordinates, pick closest to expected root
+            roots_z_remapped = remap(roots_z_unit(:,1), 3);
+            d = abs(roots_z_remapped - expected(3));
+            [min_dist, min_idx] = min(d);
+            distVals(k, i_Q, i_root_loc) = min_dist;
+            
+            % Compute a best guess of the full root
+            best_guess = roots_z_remapped(min_idx);
+
+            % ---- Error predictor (PEP-based) ----
+            z_unit = roots_z_unit(min_idx, 1);     % z in unit coordinates
+            nz = size(R,3);
+            n  = size(R,1);
+
+            % Guard: need at least degree-1 in z for a meaningful derivative
+            if nz < 2
+                predictedDistVals(k, i_Q, i_root_loc) = NaN;
+                continue
+            end
+
+            % Chebyshev T_k(z): T0=1, T1=z, T_k=2z T_{k-1} - T_{k-2}
+            T = zeros(nz,1);                 % stores T_k at index k+1
+            T(1) = 1;
+            if nz >= 2, T(2) = z_unit; end
+            for jj = 3:nz
+                T(jj) = 2*z_unit*T(jj-1) - T(jj-2);
+            end
+
+            % Chebyshev U_k(z): U0=1, U1=2z, U_k=2z U_{k-1} - U_{k-2}
+            % We will need U_{k-1} for k=1..nz-1, so compute U_0..U_{nz-2}
+            U = zeros(nz,1);                 % store U_k at index k+1
+            U(1) = 1;                        % U_0
+            if nz >= 2, U(2) = 2*z_unit; end % U_1
+            for jj = 3:nz
+                U(jj) = 2*z_unit*U(jj-1) - U(jj-2);
+            end
+            % Note: derivative uses k * U_{k-1}(z); in 1-based indexing, U(k) = U_{k-1}.
+
+            % Assemble R(z) and R'(z)
+            Rz = zeros(n);
+            Rp = zeros(n);
+            for kk = 0:nz-1
+                Rz = Rz + R(:,:,kk+1) * T(kk+1);
+                if kk >= 1
+                    Rp = Rp + R(:,:,kk+1) * (kk * U(kk));  % U(kk) = U_{kk-1}
+                end
+            end
+
+            % Polynomial eigenvectors: left/right nullspaces of R(z)
+            [Umat, Smat, Vmat] = svd(Rz);
+            v_poly = Vmat(:, end);           % right poly eigenvector
+            w_poly = Umat(:, end);           % left poly eigenvector
+
+            % Condition number of the PEP eigenvalue (scale-invariant)
+            denom = abs(w_poly' * (Rp * v_poly));
+            if denom == 0
+                kappa_PEP = Inf;
+            else
+                kappa_PEP = (norm(v_poly,2) * norm(w_poly,2)) / denom;
+            end
+
+            % Backward pieces: from linearisation residual and interpolation
+            eig_back   = eig_err(min_idx);       % ||ΔR_eig(z)||_2 (unit coords) per-eigenpair
+            build_back = 32 * nz * approx_err;   % use nz, not N_xy
+
+            % First-order forward error for physical z
+            error_resultant = (h/2) * kappa_PEP * (eig_back + build_back);
+            error_floor     = eps * cond_root;
+            err_est_hat     = max(error_resultant, error_floor);
+
+            predictedDistVals(k, i_Q, i_root_loc) = err_est_hat;
         end
     end
 end
@@ -150,7 +223,7 @@ if plot_dist
     ylabel('error in \(z\)-component','Interpreter','latex');
     title(sprintf('Effect of shrinking the domain on error (σ = %.0e)', sigma), 'Interpreter','latex');
 
-    yline(condJinv * 1e-15,'r--', ...
+    yline(cond_root * 1e-15,'r--', ...
           'Interpreter','latex', ...
           'Label','\(\mathrm{err} \approx u\cdot\mathrm{cond}\)', ...
           'LabelOrientation','horizontal', ...
