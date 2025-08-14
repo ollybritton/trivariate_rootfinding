@@ -21,7 +21,7 @@ function [rts, R, V, W, approx_err, eig_err] = roots_z(f1,f2,f3,a,b,max_degree)
 
     % Scaling? This is what roots does
     % "scale as suggested as Van Dooren"
-    % R = R/norm(R, 'fro');
+    R = R/norm(R, 'fro');
     
     disp('Finding where det(R(z)) = 0:')
     tic

@@ -4,10 +4,11 @@ plot_dist    = 1;
 plot_coeff   = 0;
 degree_approx = 2;
 
-% Difficulty parameter: typical root-finding conditioning scales like 1/sigma.
-sigma = 1e-3;
+sigma = 1e-11;
+del = 10^(-7);
 
-p = 2;                     % polynomial degree in the example
+% polynomial degree in the example
+p = 2;
 
 % Subregion widths
 hVals = logspace(2, -2, 40);
@@ -27,22 +28,16 @@ f = waitbar(0, 'Please wait...');
 for i_Q = 1:num_Q
     % Random orthogonal matrix (external helper)
     Q = rand_orth_mat(3);
-    perturb = 0*rand(1,3);
 
     % Noferini–Townsend-style example
-    f1 = @(x1,x2,x3) x1.^p + sigma .* (Q(1,1).*x1 + Q(1,2).*x2 + Q(1,3).*x3) + dot([x1.^4, x2.^4, x3.^4], perturb);
-    f2 = @(x1,x2,x3) x2.^p + sigma .* (Q(2,1).*x1 + Q(2,2).*x2 + Q(2,3).*x3) + dot([x1.^4, x2.^4, x3.^4], perturb);
-    f3 = @(x1,x2,x3) x3.^p + sigma .* (Q(3,1).*x1 + Q(3,2).*x2 + Q(3,3).*x3) + dot([x1.^4, x2.^4, x3.^4], perturb);
+    % f1 = @(x1,x2,x3) x1.^p + sigma .* (Q(1,1).*x1 + Q(1,2).*x2 + Q(1,3).*x3);
+    % f2 = @(x1,x2,x3) x2.^p + sigma .* (Q(2,1).*x1 + Q(2,2).*x2 + Q(2,3).*x3);
+    % f3 = @(x1,x2,x3) x3.^p + sigma .* (Q(3,1).*x1 + Q(3,2).*x2 + Q(3,3).*x3);
 
-    % % Linear but poor conditioning dependence
-    % % et = 10^(-7);
-    % ep1 = 10^(-8);
-    % ep2 = ep1;
-    % ep3 = ep1;
-    % % del = 10^(-7);
-    % f1 = @(x1,x2,x3) (1 * ((1/3 + ep1) * x1 + 1/3 * x2 + (1/3 - ep1) * x3));
-    % f2 = @(x1,x2,x3) (1 * ((1/3 + ep2) * x1 + (1/3 - ep2) * x2 + 1/3 * x3));
-    % f3 = @(x1,x2,x3) (1 * ((1/3) * x1 + (1/3 - ep3) * x2 + (1/3 + ep3) * x3));
+    % Linear but poor conditioning dependence
+    f1 = @(x1,x2,x3) (1 * ((1/3 + del) * x1 + 1/3 * x2 + (1/3 - del) * x3));
+    f2 = @(x1,x2,x3) (1 * ((1/3 + del) * x1 + (1/3 - del) * x2 + 1/3 * x3));
+    f3 = @(x1,x2,x3) (1 * ((1/3) * x1 + (1/3 - del) * x2 + (1/3 + del) * x3));
 
     for i_root_loc = 1:num_root_loc
         completion = ((i_Q-1) * num_root_loc + (i_root_loc-1)) / (num_Q * num_root_loc);
@@ -54,44 +49,19 @@ for i_Q = 1:num_Q
         expected = (2*rand(1,3) - 1)/100;
 
         % Chebfun3 objects for translated problem
-        f1_translated = chebfun3(@(x1,x2,x3) f1(x1-expected(1), x2-expected(2), x3-expected(3)));
-        f2_translated = chebfun3(@(x1,x2,x3) f2(x1-expected(1), x2-expected(2), x3-expected(3)));
-        f3_translated = chebfun3(@(x1,x2,x3) f3(x1-expected(1), x2-expected(2), x3-expected(3)));
+        f1_translated_cheb = chebfun3(@(x1,x2,x3) f1(x1-expected(1), x2-expected(2), x3-expected(3)));
+        f2_translated_cheb = chebfun3(@(x1,x2,x3) f2(x1-expected(1), x2-expected(2), x3-expected(3)));
+        f3_translated_cheb = chebfun3(@(x1,x2,x3) f3(x1-expected(1), x2-expected(2), x3-expected(3)));
 
         % Conditioning at the root
-        J_func = jac(f1_translated,f2_translated,f3_translated);
+        J_func = jac(f1_translated_cheb,f2_translated_cheb,f3_translated_cheb);
         J      = J_func(expected(1), expected(2), expected(3));
         J_inv  = inv(J);
         cond_root = norm(inv(J));
         cond_eig = 1 / abs(det(J));
 
-        best_guess = nan;
-
         for k = 1:numel(hVals)
             h = hVals(k);
-
-            if isnan(best_guess)
-                p1 = f1_translated;
-                p2 = f2_translated;
-                p3 = f3_translated;
-            else
-                % Simulate uncertainty
-                J_func_approx = jac(f1_translated,f2_translated,f3_translated);
-                J_approx      = J_func(best_guess(1), best_guess(2), best_guess(3));
-                J_inv_approx  = inv(J);
-
-                % Multiply by inverse of Jacobian at the root (this will not be
-                % known in practice)
-                p1 = chebfun3(@(x1,x2,x3) J_inv_approx(1,1)*f1_translated(x1,x2,x3) + J_inv_approx(1,2)*f2_translated(x1,x2,x3) + J_inv_approx(1,3)*f3_translated(x1,x2,x3), [2 2 2]);
-                p2 = chebfun3(@(x1,x2,x3) J_inv_approx(2,1)*f1_translated(x1,x2,x3) + J_inv_approx(2,2)*f2_translated(x1,x2,x3) + J_inv_approx(2,3)*f3_translated(x1,x2,x3), [2 2 2]);
-                p3 = chebfun3(@(x1,x2,x3) J_inv_approx(3,1)*f1_translated(x1,x2,x3) + J_inv_approx(3,2)*f2_translated(x1,x2,x3) + J_inv_approx(3,3)*f3_translated(x1,x2,x3), [2 2 2]);
-        
-                % New condition numbers, these should be close to one
-                J_func_translated = jac(p1,p2,p3);
-                J_translated      = J_func_translated(expected(1), expected(2), expected(3));
-                cond_root_translated = norm(inv(J_translated));
-                cond_eig_translated = 1 / abs(det(J_translated));
-            end
 
             % Asymmetric cube around the expected root
             a = [expected(1) - h/3,   expected(2) + h/3,   expected(3) - h/4];
@@ -102,20 +72,49 @@ for i_Q = 1:num_Q
 
             remap = @(x,idx) cube_scale(idx).*x + cube_shift(idx);
 
-            % Scale the remapped functions to O(1) on the box
-            v = [-1 1];
-            [X,Y,Z] = ndgrid(v,v,v);
-            x = remap(X(:),1);  y = remap(Y(:),2);  z = remap(Z(:),3);
-            c1 = max(abs(p1(x,y,z)));
-            c2 = max(abs(p2(x,y,z)));
-            c3 = max(abs(p3(x,y,z)));
+            f1_remapped = @(x1,x2,x3) f1(remap(x1,1)-expected(1), remap(x2,2)-expected(2), remap(x3,3)-expected(3));
+            f2_remapped = @(x1,x2,x3) f2(remap(x1,1)-expected(1), remap(x2,2)-expected(2), remap(x3,3)-expected(3));
+            f3_remapped = @(x1,x2,x3) f3(remap(x1,1)-expected(1), remap(x2,2)-expected(2), remap(x3,3)-expected(3));
 
-            p1_u = @(x1,x2,x3) p1(remap(x1,1), remap(x2,2), remap(x3,3)) / c1;
-            p2_u = @(x1,x2,x3) p2(remap(x1,1), remap(x2,2), remap(x3,3)) / c2;
-            p3_u = @(x1,x2,x3) p3(remap(x1,1), remap(x2,2), remap(x3,3)) / c3;
+            v = [-1 1];
+            [x,y,z] = ndgrid(v,v,v);
+            x = x(:); y = y(:); z = z(:);
+            c1 = max(abs(f1_remapped(x,y,z)));
+            c2 = max(abs(f1_remapped(x,y,z)));
+            c3 = max(abs(f1_remapped(x,y,z)));
+
+            mode = "rescale";
+
+            if mode == "rescale"
+                % Option 1: rescale function to have unit inf norm
+                p1 = @(x1,x2,x3) f1_remapped(x1,x2,x3) / c1;
+                p2 = @(x1,x2,x3) f2_remapped(x1,x2,x3) / c2;
+                p3 = @(x1,x2,x3) f3_remapped(x1,x2,x3) / c3;
+            elseif mode == "premultiply"
+                % Option 2: premultiply by the inverse jacobian
+                p1_phys = @(x1,x2,x3) J_inv(1,1)*f1(x1-expected(1), x2-expected(2), x3-expected(3)) + J_inv(1,2)*f2(x1-expected(1), x2-expected(2), x3-expected(3)) + J_inv(1,3)*f3(x1-expected(1), x2-expected(2), x3-expected(3));
+                p2_phys = @(x1,x2,x3) J_inv(2,1)*f1(x1-expected(1), x2-expected(2), x3-expected(3)) + J_inv(2,2)*f2(x1-expected(1), x2-expected(2), x3-expected(3)) + J_inv(2,3)*f3(x1-expected(1), x2-expected(2), x3-expected(3));
+                p3_phys = @(x1,x2,x3) J_inv(3,1)*f1(x1-expected(1), x2-expected(2), x3-expected(3)) + J_inv(3,2)*f2(x1-expected(1), x2-expected(2), x3-expected(3)) + J_inv(3,3)*f3(x1-expected(1), x2-expected(2), x3-expected(3));
+                
+                p1 = @(x1,x2,x3) p1_phys(remap(x1,1), remap(x2,2), remap(x3,3));
+                p2 = @(x1,x2,x3) p2_phys(remap(x1,1), remap(x2,2), remap(x3,3));
+                p3 = @(x1,x2,x3) p3_phys(remap(x1,1), remap(x2,2), remap(x3,3));
+            else
+                % Option 3: no normalisation
+                p1 = f1_remapped;
+                p2 = f2_remapped;
+                p3 = f3_remapped;
+            end
+
+            % New condition numbers, ideally these should be close to one
+            % Requires p1, p2, p3 to be defined as chebfuns
+            % J_func_translated = jac(p1,p2,p3);
+            % J_translated      = J_func_translated(expected(1), expected(2), expected(3));
+            % cond_root_translated = norm(inv(J_translated));
+            % cond_eig_translated = 1 / abs(det(J_translated));
 
             % Solve in unit cube and gather block data
-            [roots_z_unit, R, V, W, approx_err, eig_err] = roots_z(p1_u, p2_u, p3_u, [-1 -1 -1], [1 1 1], degree_approx);
+            [roots_z_unit, R, V, W, approx_err, eig_err] = roots_z(p1, p2, p3, [-1 -1 -1], [1 1 1], degree_approx);
 
             n_z     = size(R,3);
             Ai_norm = arrayfun(@(t) norm(R(:,:,t),2), 1:n_z);
@@ -181,7 +180,7 @@ for i_Q = 1:num_Q
             v_poly = Vmat(:, end);           % right poly eigenvector
             w_poly = Umat(:, end);           % left poly eigenvector
 
-            % Condition number of the PEP eigenvalue (scale-invariant)
+            % Condition number of the PEP eigenvalue
             denom = abs(w_poly' * (Rp * v_poly));
             if denom == 0
                 kappa_PEP = Inf;
@@ -221,7 +220,7 @@ if plot_dist
     grid on;
     xlabel('box width \(h\)','Interpreter','latex');
     ylabel('error in \(z\)-component','Interpreter','latex');
-    title(sprintf('Effect of shrinking the domain on error (σ = %.0e)', sigma), 'Interpreter','latex');
+    title(sprintf('Effect of shrinking the domain on error (σ = %.0e, δ = %.0e)', sigma, del), 'Interpreter','latex');
 
     yline(cond_root * 1e-15,'r--', ...
           'Interpreter','latex', ...
