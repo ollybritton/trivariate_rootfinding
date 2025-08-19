@@ -4,14 +4,14 @@ plot_dist    = 1;
 plot_coeff   = 0;
 degree_approx = 2;
 
-sigma = 1e-8;
-del = 1e-8;
+sigma = 1e-2;
+del = 1e-7;
 
 % polynomial degree in the example
-p = 2;
+p = 1;
 
-should_precondition = false;
-should_rescale = true;
+should_precondition = true;
+should_rescale = false;
 
 % Subregion widths
 hVals = logspace(-6, 4, 80);
@@ -33,14 +33,19 @@ for i_Q = 1:num_Q
     Q = rand_orth_mat(3);
 
     % Noferini–Townsend-style example
-    f1 = @(x1,x2,x3) x1.^p + sigma .* (Q(1,1).*x1 + Q(1,2).*x2 + Q(1,3).*x3);
-    f2 = @(x1,x2,x3) x2.^p + sigma .* (Q(2,1).*x1 + Q(2,2).*x2 + Q(2,3).*x3);
-    f3 = @(x1,x2,x3) x3.^p + sigma .* (Q(3,1).*x1 + Q(3,2).*x2 + Q(3,3).*x3);
+    % f1 = @(x1,x2,x3) x1.^p + sigma .* (Q(1,1).*x1 + Q(1,2).*x2 + Q(1,3).*x3);
+    % f2 = @(x1,x2,x3) x2.^p + sigma .* (Q(2,1).*x1 + Q(2,2).*x2 + Q(2,3).*x3);
+    % f3 = @(x1,x2,x3) x3.^p + sigma .* (Q(3,1).*x1 + Q(3,2).*x2 + Q(3,3).*x3);
 
     % Linear and poor conditioning
-    % f1 = @(x1,x2,x3) (1/3 + del) * x1 + 1/3 * x2 + (1/3 - del) * x3;
-    % f2 = @(x1,x2,x3) (1/3 + del) * x1 + (1/3 - del) * x2 + 1/3 * x3;
-    % f3 = @(x1,x2,x3) (1/3) * x1 + (1/3 + del) * x2 + (1/3 - del) * x3;
+    f1 = @(x1,x2,x3) (1/3 + del) * x1 + 1/3 * x2 + (1/3 - del) * x3;
+    f2 = @(x1,x2,x3) (1/3 + del) * x1 + (1/3 - del) * x2 + 1/3 * x3;
+    f3 = @(x1,x2,x3) (1/3) * x1 + (1/3 + del) * x2 + (1/3 - del) * x3;
+
+    % Example that straightforward subdivision couldn't find
+    % f1 = @(x,y,z) cos(2*pi*x).*cos(2*pi*y).*cos(2*pi*z);
+    % f2 = @(x,y,z) y;
+    % f3 = @(x,y,z) x.^2 + y.^2 + z.^2 - 1;
 
     % Conditioning at the root
     J_func = jac(f1,f2,f3);
@@ -65,7 +70,7 @@ for i_Q = 1:num_Q
         fprintf("root_loc number %d\n", i_root_loc);
 
         % Choose a (small) translated root location
-        expected = (2*rand(1,3) - 1)/100;
+        expected = [-sqrt(7)/4  0  3/4] + (2*rand(1,3) - 1)/100;
 
         for k = 1:numel(hVals)
             h = hVals(k);
@@ -150,57 +155,13 @@ for i_Q = 1:num_Q
             distVals(k, i_Q, i_root_loc) = min_dist;
 
             % ---- Error analysis ----
-            z_unit = roots_z_unit(min_idx, 1);     % z in unit coordinates
-            nz = size(R,3);
-            n  = size(R,1);
+            z_unit = roots_z_unit(min_idx,1);
+            
+            dz_phys_est = estimate_z_error_from_R_fd(R, z_unit, h);
+            
+            error_floor = eps * cond_root_transformed;           % same floor as before
+            predictedDistVals(k,i_Q,i_root_loc) = max(dz_phys_est, error_floor);
 
-            % Chebyshev T_k(z): T0=1, T1=z, T_k=2z T_{k-1} - T_{k-2}
-            T = zeros(nz,1);                 % stores T_k at index k+1
-            T(1) = 1;
-            if nz >= 2, T(2) = z_unit; end
-            for jj = 3:nz
-                T(jj) = 2*z_unit*T(jj-1) - T(jj-2);
-            end
-
-            % Chebyshev U_k(z): U0=1, U1=2z, U_k=2z U_{k-1} - U_{k-2}
-            % We will need U_{k-1} for k=1..nz-1, so compute U_0..U_{nz-2}
-            U = zeros(nz,1);                 % store U_k at index k+1
-            U(1) = 1;                        % U_0
-            if nz >= 2, U(2) = 2*z_unit; end % U_1
-            for jj = 3:nz
-                U(jj) = 2*z_unit*U(jj-1) - U(jj-2);
-            end
-            % Note: derivative uses k * U_{k-1}(z); in 1-based indexing, U(k) = U_{k-1}.
-
-            % Assemble R(z) and R'(z)
-            Rz = zeros(n);
-            Rp = zeros(n);
-            for kk = 0:nz-1
-                Rz = Rz + R(:,:,kk+1) * T(kk+1);
-                if kk >= 1
-                    Rp = Rp + R(:,:,kk+1) * (kk * U(kk));  % U(kk) = U_{kk-1}
-                end
-            end
-
-            % Polynomial eigenvectors: left/right nullspaces of R(z)
-            [Umat, Smat, Vmat] = svd(Rz);
-            v_poly = Vmat(:, end);           % right poly eigenvector
-            w_poly = Umat(:, end);           % left poly eigenvector
-
-            % Condition number of the PEP eigenvalue
-            denom = abs(w_poly' * (Rp * v_poly));
-            eig_cond = (norm(v_poly,2) * norm(w_poly,2)) / denom;
-
-            % Backward pieces: from linearisation residual and interpolation
-            eig_back   = eig_err(min_idx);       % ||ΔR_eig(z)||_2 (unit coords) per-eigenpair
-            build_back = 32 * nz * approx_err;   % use nz, not N_xy
-
-            % First-order forward error for physical z
-            error_resultant = (h/2) * eig_cond * (eig_back + build_back);
-            error_floor     = eps * cond_root;
-            err_est_hat     = max(error_resultant, error_floor);
-
-            predictedDistVals(k, i_Q, i_root_loc) = err_est_hat;
         end
     end
 end
@@ -248,4 +209,70 @@ if plot_coeff
     xlabel('box width  \(h\)','Interpreter','latex');
     ylabel('\(\max ||A_i||_2\)','Interpreter','latex');
     title('Effect of shrinking the domain on \(\max ||A_i||_2\)', 'Interpreter','latex');
+end
+
+function dz_phys_est = estimate_z_error_from_R_fd(R, z_hat, h)
+    % Forward error estimator: |Δz_phys| ≈ (h/2) * smin / |w' R'(z_hat) v|
+
+    % ---------- Remove a numerically-negligible tail ----------
+    nz_full = size(R,3);
+    Ak = arrayfun(@(t) norm(R(:,:,t),2), 1:nz_full).';
+    relTol = 1e-12 * max(Ak);                % relative gate
+    absTol = 1e2  * eps  * sum(Ak);          % absolute guard
+    gate   = max(relTol, absTol);
+    k_eff  = find(Ak > gate, 1, 'last');
+    if isempty(k_eff), k_eff = 1; end
+    R = R(:,:,1:k_eff);
+    nz = k_eff;  n = size(R,1);
+
+    % ---------- Chebyshev evaluation of R(z_hat) ----------
+    [T,~] = cheb_TU_at(z_hat, nz);
+    Rz = zeros(n);
+    for k = 0:nz-1
+        Rz = Rz + R(:,:,k+1) * T(k+1);
+    end
+
+    % left/right vectors and residual size
+    [U,S,V] = svd(Rz);
+    w = U(:,end);           % unit 2-norm
+    v = V(:,end);           % unit 2-norm
+    smin = S(end,end);      % = min ||R(z_hat) u||_2 over ||u||=1
+
+    % ---------- Numerical derivative of R at z_hat ----------
+    % TODO: can probably replace with determinant calculation
+    dz = max(1e-7, sqrt(eps)) * max(1, abs(z_hat));
+
+    [Tp,~] = cheb_TU_at(z_hat + dz, nz);
+    [Tm,~] = cheb_TU_at(z_hat - dz, nz);
+
+    Rp = zeros(n);  Rm = zeros(n);
+    for k = 0:nz-1
+        Rp = Rp + R(:,:,k+1) * Tp(k+1);
+        Rm = Rm + R(:,:,k+1) * Tm(k+1);
+    end
+    Rprime_num = (Rp - Rm) / (2*dz);
+
+    den = abs( w' * (Rprime_num * v) );
+    den = max(den, eps);    % safety
+
+    % ---------- First-order forward error (map unit->physical) ----------
+    % calibration factor to make it more likely that we overestimate rather
+    % than underestimate
+    calibration_factor = 1e1;
+
+    dz_unit_est  = smin / den;
+    dz_phys_est  = (h/2) * dz_unit_est * calibration_factor;
+end
+
+function [T,U] = cheb_TU_at(z, nz)
+% T(k+1) = T_k(z),  U(k+1) = U_k(z), k=0..nz-1
+    T = zeros(nz,1);  U = zeros(nz,1);
+    T(1) = 1;                 U(1) = 1;          % T0, U0
+    if nz >= 2
+        T(2) = z;             U(2) = 2*z;        % T1, U1
+    end
+    for k = 3:nz
+        T(k) = 2*z*T(k-1) - T(k-2);
+        U(k) = 2*z*U(k-1) - U(k-2);
+    end
 end
