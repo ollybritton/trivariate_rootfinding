@@ -70,7 +70,7 @@ for i_Q = 1:num_Q
         fprintf("root_loc number %d\n", i_root_loc);
 
         % Choose a (small) translated root location
-        expected = [-sqrt(7)/4  0  3/4] + (2*rand(1,3) - 1)/100;
+        expected = (2*rand(1,3) - 1)/100;
 
         for k = 1:numel(hVals)
             h = hVals(k);
