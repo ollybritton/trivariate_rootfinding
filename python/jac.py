@@ -15,9 +15,8 @@ def get_jacobian_func_numeric(
         A function that takes (x, y, z) and returns the 3x3 Jacobian matrix.
     """
     f1, f2, f3 = f_list
-    h = 1e-7  # Small step size for finite difference
+    h = 1e-7
 
-    # Define partial derivatives using central differences
     df1_dx = lambda x, y, z: (f1(x + h, y, z) - f1(x - h, y, z)) / (2 * h)
     df1_dy = lambda x, y, z: (f1(x, y + h, z) - f1(x, y - h, z)) / (2 * h)
     df1_dz = lambda x, y, z: (f1(x, y, z + h) - f1(x, y, z - h)) / (2 * h)
