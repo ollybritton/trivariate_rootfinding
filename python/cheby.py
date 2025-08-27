@@ -21,33 +21,21 @@ def cheby_eval_1d(coeffs: np.ndarray, x: np.ndarray) -> np.ndarray:
     return y
 
 def cheby_5d_evaluate(coeffs: np.ndarray, p_vecs: list) -> np.ndarray:
-    """
-    Evaluates a 5D Chebyshev series using np.einsum for simplicity and speed.
-    
-    Args:
-        coeffs: The 5D tensor of Chebyshev coefficients.
-        p_vecs: A list of 5 1D arrays for the coordinates along each axis.
-    """
-    eval_matrices = [
+    eval_mats = [
         cheb.chebvander(p, deg)
         for p, deg in zip(p_vecs, (d - 1 for d in coeffs.shape))
     ]
 
-    return np.einsum(
-        'abcde,ia,jb,kc,ld,me->ijklm',
-        coeffs,
-        *eval_matrices
-    )
+    return np.einsum('abcde,ia,jb,kc,ld,me->ijklm', coeffs, *eval_mats)
 
 def evaluate_cheb_poly_mat(R: np.ndarray, z: float) -> np.ndarray:
-    """Evaluates the matrix polynomial R(z) = sum(R_k * T_k(z))."""
     n_z = R.shape[2]
-    B_k_plus_2 = np.zeros_like(R[:, :, 0], dtype=np.complex128)
-    B_k_plus_1 = np.zeros_like(R[:, :, 0], dtype=np.complex128)
+    B_k_plus_2 = np.zeros_like(R[:, :, 0], dtype=np.float64 if R.dtype==np.float64 else np.complex128)
+    B_k_plus_1 = np.zeros_like(R[:, :, 0], dtype=np.float64 if R.dtype==np.float64 else np.complex128)
     z2 = 2 * z
     for k in range(n_z - 1, 0, -1):
         B_k = R[:, :, k] + z2 * B_k_plus_1 - B_k_plus_2
         B_k_plus_2, B_k_plus_1 = B_k_plus_1, B_k
-
+    
     Rz = R[:, :, 0] + z * B_k_plus_1 - B_k_plus_2
     return Rz
