@@ -1,11 +1,23 @@
+import scipy
 import numpy as np
 import matplotlib.pyplot as plt
 from scipy.linalg import svd
 from tqdm import tqdm
 
 from rootfinder import roots_z, evaluate_cheb_poly_mat, cayley_resultant
-from jac import get_jacobian_func_numeric
 
+PLOT_DIST = True
+DEGREE_APPROX = 2
+SHOULD_PRECONDITION = True
+del_param = 1e-3
+h_vals = np.logspace(-6, 4, 80)
+NUM_Q, NUM_ROOT_LOC = 1, 50
+
+f = lambda x: np.array([
+    (1 / 3 + del_param) * x[0] + 1 / 3 * x[1] + (1 / 3 - del_param) * x[2],
+    (1 / 3 + del_param) * x[0] + (1 / 3 - del_param) * x[1] + 1 / 3 * x[2],
+    1 / 3 * x[0] + (1 / 3 + del_param) * x[1] + (1 / 3 - del_param) * x[2],
+])
 
 def estimate_z_error(R: np.ndarray, z_hat: float, h: float) -> float:
     """Estimates the physical z-error from the resultant matrix polynomial."""
@@ -34,25 +46,11 @@ def estimate_z_error(R: np.ndarray, z_hat: float, h: float) -> float:
     dz_phys_est = (h / 2) * dz_unit_est * calibration_factor
     return dz_phys_est
 
-
-PLOT_DIST = True
-DEGREE_APPROX = 2
-SHOULD_PRECONDITION = True
-del_param = 1e-3
-h_vals = np.logspace(-6, 4, 80)
-NUM_Q, NUM_ROOT_LOC = 1, 50
-
-f1 = lambda x, y, z: (1 / 3 + del_param) * x + 1 / 3 * y + (1 / 3 - del_param) * z
-f2 = lambda x, y, z: (1 / 3 + del_param) * x + (1 / 3 - del_param) * y + 1 / 3 * z
-f3 = lambda x, y, z: 1 / 3 * x + (1 / 3 + del_param) * y + (1 / 3 - del_param) * z
-functions = [f1, f2, f3]
-
 dist_vals = np.full((len(h_vals), NUM_Q, NUM_ROOT_LOC), np.nan)
 predicted_dist_vals = np.full((len(h_vals), NUM_Q, NUM_ROOT_LOC), np.nan)
 
 for i_Q in range(NUM_Q):
-    J_func = get_jacobian_func_numeric(functions)
-    J = J_func(0.0, 0.0, 0.0)
+    J = scipy.differentiate.jacobian(f, [0.0, 0.0, 0.0]).df
     J_inv = np.linalg.inv(J)
     cond_root = np.linalg.norm(J_inv)
     cond_eig = 1.0 / np.abs(np.linalg.det(J))
@@ -70,27 +68,18 @@ for i_Q in range(NUM_Q):
 
             e0, e1, e2 = expected_root
 
-            f_remapped = [
-                (lambda g: (lambda x, y, z, g=g, e0=e0, e1=e1, e2=e2:
-                            g(remap(x, 0) - e0,
-                              remap(y, 1) - e1,
-                              remap(z, 2) - e2)))(g)
-                for g in functions
-            ]
+            def f_transformed(x):
+                return f(scale * x + shift - expected_root)
 
-            J_func_transformed = get_jacobian_func_numeric(f_remapped)
-            J_transformed = J_func_transformed(0.0, 0.0, 0.0)
+            J_transformed = scipy.differentiate.jacobian(lambda x: np.apply_along_axis(f_transformed, axis=0, arr=x), [0.0, 0.0, 0.0]).df
             J_inv_transformed = np.linalg.inv(J_transformed)
             kappa_root_transformed = np.linalg.norm(J_inv_transformed)
             kappa_eig_transformed  = 1.0 / abs(np.linalg.det(J_transformed))
 
             if SHOULD_PRECONDITION:
-                def lin_combo(row, g_list):
-                    return (lambda x, y, z, row=row, g_list=g_list:
-                            row[0]*g_list[0](x,y,z) + row[1]*g_list[1](x,y,z) + row[2]*g_list[2](x,y,z))
-                p = [lin_combo(J_inv_transformed[i, :], f_remapped) for i in range(3)]
+                p = lambda x: J_inv_transformed @ f_transformed(x)
             else:
-                p = f_remapped
+                p = f_transformed
 
             roots_z_unit, _, _, _, R = roots_z(p, DEGREE_APPROX)
 
